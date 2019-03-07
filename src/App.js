@@ -4,20 +4,25 @@ import "./App.css";
 import Graph from "./components/graph";
 const ETHER_API_KEY = `${process.env.REACT_APP_ETHERSCAN_API}`;
 const CRYPTO_API_KEY = `${process.env.REACT_APP_CRYPROCOMPARE_API}`;
+// TODO: Add switch from Mainnet to Testnet Ether
 const ea = require("etherscan-api").init(ETHER_API_KEY);
 const cc = require("cryptocompare");
 cc.setApiKey(CRYPTO_API_KEY);
 
-//TODO:
+//TODO: Fix bug when trying to search smart contract transaction history
 
 class App extends Component {
   state = {
     data: [],
     ddlValue: "",
     multiplier: 1,
-    showResults: false
+    showResults: false,
+    errorMessage: "",
+    address: "",
+    tempAddress: ""
   };
 
+  // Applies a multiplier to values from the CryptoCompare API
   retreiveEthPrice(currency) {
     if (currency === "USD") {
       cc.price("ETH", "USD").then(prices => {
@@ -28,14 +33,15 @@ class App extends Component {
         this.autoRefresh(prices.CAD);
       });
     } else {
+      // TODO: Embrace async, instead of doing this hack
       setTimeout(() => {
         this.autoRefresh(1);
       }, 0);
     }
   }
 
-  autoRefresh(multValue) {
-    var multiplier = multValue;
+  //
+  autoRefresh(multiplier) {
     this.setState({ multiplier });
     if (
       typeof this.state.address != "undefined" ||
@@ -46,34 +52,36 @@ class App extends Component {
   }
 
   handleRefresh(address, multiplier) {
+    // TODO: Use bind() or ES6 functions instead of that=this hack
     var that = this;
     var balance = ea.account.txlist(address);
     balance
       .then(function(balanceData) {
         let data = [];
-        var inc = 0;
+        var index = 0;
         const bal = balanceData.result;
+
         bal.map(dat => {
           if (dat.value > 0) {
             var etherVal = Web3.utils.fromWei(dat.value, "ether");
             etherVal = etherVal * multiplier;
-            data.push([inc, etherVal]);
-            inc++;
+            data.push([index, etherVal]);
+            index++;
           }
           return null;
         });
+
         that.setState({ data, address });
         that.onNoErrorsReturned();
       })
       .catch(function(err) {
+        // Catching the custom errors that come from the Etherscan API
         if (err === "NOTOK") {
-          that.setState({
-            errorMessage:
-              "No transactions recorded for this address on the main ethereum network",
-            showResults: false
-          });
+          that.onErrorReturned(
+            "No transactions recorded for this address on the main ethereum network"
+          );
         } else {
-          that.setState({ errorMessage: err, showResults: false });
+          that.onErrorReturned(err);
         }
       });
   }
@@ -86,13 +94,14 @@ class App extends Component {
     this.retreiveEthPrice(inputChange.target.value);
   };
 
+  // I could just check if error message contains a value, but I decided to have a clear boolean to determine to show the results
   onNoErrorsReturned() {
     this.setState({ showResults: true, errorMessage: "" });
   }
 
-  // handletest = () => {
-  //   const { multiplier } = this.state;
-  // };
+  onErrorReturned(err) {
+    this.setState({ showResults: false, errorMessage: err });
+  }
 
   render() {
     return (
@@ -100,7 +109,10 @@ class App extends Component {
         <main className="container">
           <div className="row">
             <div className="col-xl-4 col-lg-12 content">
-              <button
+              <button // Should move this to it's own sfc component class
+                // A problem with onClick={() => {...}} is that "a different callback is created each time the LoggingButton renders"
+                // https://reactjs.org/docs/handling-events.html
+                // "We generally recommend binding in the constructor or using the class fields syntax, to avoid this sort of performance problem."
                 onClick={() => {
                   this.handleRefresh(
                     "0x4092678e4E78230F46A1534C0fbc8fA39780892B",
@@ -111,7 +123,7 @@ class App extends Component {
               >
                 Odyssey Coin
               </button>
-              <button
+              <button // Should move this to it's own sfc component class
                 onClick={() => {
                   this.handleRefresh(
                     "0xD1CEeeeee83F8bCF3BEDad437202b6154E9F5405",
@@ -122,7 +134,7 @@ class App extends Component {
               >
                 Dice2Win
               </button>
-              <button
+              <button // Should move this to it's own sfc component class
                 onClick={() => {
                   this.handleRefresh(
                     "0xFa52274DD61E1643d2205169732f29114BC240b3",
@@ -144,7 +156,8 @@ class App extends Component {
                   placeholder="Ether Address"
                 />
                 <div className="input-group-append">
-                  <button
+                  <button // imitation form, does not work when enter is pressed
+                    // Should move this to it's own sfc component class
                     className="btn btn-primary btn-md float-right"
                     type="submit"
                     onClick={() => {
@@ -191,5 +204,3 @@ class App extends Component {
 }
 
 export default App;
-
-// TODO: Display error message when no data found in the list
